@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { createAccount } from "@/lib/actions/user.actions";
+import { createAccount, signInUser } from "@/lib/actions/user.actions";
 import OtpModal from "./OTPModal";
 
 type FormType = "signin" | "signup";
@@ -33,7 +33,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [accountId, setAccountId] = useState("");
-  
+
   const formSchema = authFormSchema(type);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -48,12 +48,15 @@ const AuthForm = ({ type }: { type: FormType }) => {
     setErrorMessage("");
 
     try {
-    const user = await createAccount({
-      username: values.username || "",
-      email: values.email,
-    });
+      const user =
+        type === "signup"
+          ? await createAccount({
+              username: values.username || "",
+              email: values.email,
+            })
+          : await signInUser({ email: values.email });
 
-    setAccountId(user.accountId as string);
+      setAccountId(user.accountId as string);
     } catch {
       setErrorMessage("Une erreur est survenue. Veuillez réessayer.");
     } finally {
@@ -104,7 +107,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
 
                   <FormControl>
                     <Input
-                      placeholder="Enter your email"
+                      placeholder="Entrez votre adresse email"
                       className="body-2 border-none shadow-none p-0 shad-no-focus"
                       {...field}
                     />
@@ -154,7 +157,9 @@ const AuthForm = ({ type }: { type: FormType }) => {
         </form>
       </Form>
 
-      {accountId && <OtpModal email={form.getValues("email")} accountId={accountId} />}
+      {accountId && (
+        <OtpModal email={form.getValues("email")} accountId={accountId} />
+      )}
     </>
   );
 };

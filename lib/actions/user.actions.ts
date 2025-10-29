@@ -6,6 +6,7 @@ import { appwriteConfig } from "../appwrite/config"
 import { parseStringify } from "../utils"
 import { cookies } from "next/headers"
 import { avatarPlaceholderUrl } from "@/constants"
+import { redirect } from "next/navigation"
 
 const getUserByEmail = async (email: string) => {
     const { databases } = await createAdminClient()
@@ -61,11 +62,11 @@ export const verifySecret = async ({ accountId, password }: { accountId: string,
 
         const session = await account.createSession(accountId, password);
 
-        (await cookies()).set("appwrite-session", session.secret, { 
+        (await cookies()).set("appwrite-session", session.secret, {
             httpOnly: true,
             path: "/",
             sameSite: "strict",
-            secure: process.env.NODE_ENV === "production" 
+            secure: process.env.NODE_ENV === "production"
         });
 
         return parseStringify({ sessionId: session.$id })
@@ -76,20 +77,49 @@ export const verifySecret = async ({ accountId, password }: { accountId: string,
 
 export const getCurrentUser = async () => {
     try {
-      const { databases, account } = await createSessionClient();
-  
-      const result = await account.get();
-  
-      const user = await databases.listDocuments(
-        appwriteConfig.databaseId,
-        appwriteConfig.userCollectionId,
-        [Query.equal("accountId", result.$id)],
-      );
-  
-      if (user.total <= 0) return null;
-  
-      return parseStringify(user.documents[0]);
+        const { databases, account } = await createSessionClient();
+
+        const result = await account.get();
+
+        const user = await databases.listDocuments(
+            appwriteConfig.databaseId,
+            appwriteConfig.userCollectionId,
+            [Query.equal("accountId", result.$id)],
+        );
+
+        if (user.total <= 0) return null;
+
+        return parseStringify(user.documents[0]);
     } catch (error) {
-      return null;
+        return null;
     }
-  };
+};
+
+export const signOutUser = async () => {
+    const { account } = await createSessionClient();
+
+    try {
+        await account.deleteSession('current');
+        (await cookies()).delete('appwrite-session');
+        return parseStringify({ message: 'User signed out successfully' });
+    } catch (error) {
+        handleError(error, 'Failed to sign out user');
+    } finally {
+        redirect('/sign-in');
+    }
+}
+
+export const signInUser = async ({ email }: { email: string }) => {
+    try {
+        const existingUser = await getUserByEmail(email);
+
+        if (existingUser) {
+            await sendEmailOTP({ email });
+            return parseStringify({ accountId: existingUser.accountId });
+        }
+
+        return parseStringify({ accountId: null, error: 'User not found' });
+    } catch (error) {
+        handleError(error, 'Failed to sign in user');
+    }
+}
